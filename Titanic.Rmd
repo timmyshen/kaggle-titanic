@@ -1,0 +1,88 @@
+---
+title: "Titanic"
+author: "Benqing Shen"
+date: "September 9, 2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+
+train <- readr::read_csv('./train.csv')
+test <- readr::read_csv('./test.csv')
+
+train_label <- train %>% mutate(label='train')
+test_label <- test %>% mutate(label='test', Survived=NA)
+train_test <- rbind(train_label, test_label)
+```
+
+
+```{r}
+train_test$Embarked <- as.factor(train_test$Embarked)
+# train_test$Cabin <- as.factor(train_test$Cabin)
+train_test$Sex <- as.factor(train_test$Sex)
+train_test$Pclass <- as.factor(train_test$Pclass)
+```
+
+Feature Engineer Cabin
+```{r}
+train_test <-
+  train_test %>% mutate(Cabin_Type=substr(Cabin, 1, 1))
+
+train_test[is.na(train_test$Fare), "Fare"] <-
+  median(train_test$Fare, na.rm = TRUE)
+train_test[is.na(train_test$Age), "Age"] <-
+  median(train_test$Age, na.rm = TRUE)
+
+```
+
+
+```{r}
+str(train_test)
+```
+
+```{r}
+library(caret)
+```
+
+```{r}
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 5,
+                           ## repeated ten times
+                           repeats = 5)
+set.seed(825)
+training <- train_test %>% filter(label=='train') %>% mutate(Survived=as.factor(Survived))
+
+trainIndex <- createDataPartition(training$Survived, p = .8,
+                                  list = FALSE,
+                                  times = 1)
+train_cv <- training[ trainIndex,]
+train_oo  <- training[-trainIndex,]
+
+rf_fit <- train(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Cabin_Type, data = train_cv,
+                 method = "rf",
+                 trControl = fitControl,
+                 ## This last option is actually one
+                 ## for gbm() that passes through
+                 verbose = FALSE)
+rf_fit
+```
+
